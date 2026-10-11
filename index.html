@@ -238,6 +238,7 @@
 <div class="toast hidden" id="toast" role="status"></div>
 
 <script>
+if (location.hostname === 'localhost') location.replace(location.href.replace('//localhost', '//127.0.0.1'));
 const $ = (id) => document.getElementById(id);
 const store = {
   get(k, d) { try { const v = localStorage.getItem('carboard.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
