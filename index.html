@@ -23,9 +23,15 @@
     filter: blur(26px) brightness(0.38) saturate(1.15); transition: opacity 0.6s; pointer-events: none; }
   .app { position: relative; z-index: 1; height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 31vw, 420px);
     grid-template-rows: auto minmax(0, 1fr); gap: 12px; padding: 12px; }
-  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; }
-  .clock { font-size: 40px; font-weight: 600; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
-  .date { color: var(--sub); font-size: 16px; }
+  header { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 16px; min-width: 0; }
+  .clock { font-size: 34px; font-weight: 600; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+  .meta { display: flex; align-items: center; gap: 10px; color: var(--sub); font-size: 16px; min-width: 0; white-space: nowrap; overflow: hidden; }
+  .meta .sep { color: var(--muted); }
+  .meta .eta { min-height: 44px; padding: 0 12px; margin: -10px 0; background: transparent; color: var(--text); font-size: 16px; border-radius: 999px; }
+  .meta .eta.unset { color: var(--muted); }
+  .meta .eta small { color: var(--sub); font-size: 15px; margin-left: 4px; }
+  .meta .net { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+  .meta .net.off { color: var(--red); font-weight: 600; }
   .spacer { flex: 1; }
   .pill { display: flex; align-items: center; gap: 8px; padding: 0 18px; min-height: 52px;
     background: var(--panel); border-radius: 999px; font-size: 17px; }
@@ -135,15 +141,14 @@
 <div class="wall" id="wall"></div>
 <div class="app">
   <header>
-    <div>
-      <div class="clock" id="clock">--:--</div>
-      <div class="date" id="date"></div>
+    <div class="clock" id="clock">--:--</div>
+    <div class="meta">
+      <span id="date"></span>
+      <span class="sep">·</span>
+      <button class="eta" id="etaBtn" aria-label="到着予定を設定"><span id="etaText">＋到着予定</span></button>
+      <span class="sep">·</span>
+      <span class="net" id="net"><span class="dot" id="netDot"></span><span id="netText">Wi‑Fi</span></span>
     </div>
-    <div class="spacer"></div>
-    <button class="pill" id="etaBtn" aria-label="到着予定を設定">
-      <span id="etaText">到着予定を入れる</span>
-    </button>
-    <div class="pill" id="net"><span class="dot" id="netDot"></span><small id="netText">Wi‑Fi</small></div>
   </header>
 
   <section class="main">
@@ -311,10 +316,12 @@ function tick() {
     $('etaText').innerHTML = '到着 ' + t.getHours() + ':' + pad(t.getMinutes()) +
       ' <small>' + (left > 0 ? 'あと ' + left + ' 分' : 'まもなく') + '</small>';
   } else {
-    $('etaText').textContent = '到着予定を入れる';
+    $('etaText').textContent = '＋到着予定';
   }
+  $('etaBtn').classList.toggle('unset', !eta);
   const on = navigator.onLine;
   $('netDot').classList.toggle('off', !on);
+  $('net').classList.toggle('off', !on);
   $('netText').textContent = on ? 'Wi‑Fi' : 'オフライン';
 }
 setInterval(tick, 1000);
