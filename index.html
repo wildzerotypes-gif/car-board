@@ -52,6 +52,13 @@
   .chips::-webkit-scrollbar { display: none; }
   .chip { flex: 0 0 auto; padding: 0 22px; min-height: 56px; border-radius: 999px; font-size: 17px; background: var(--panel); }
   .chip.on { background: var(--text); color: var(--bg); }
+  .chip.toggle { color: var(--sub); border: 1px dashed var(--line); background: transparent; }
+  .chip.toggle.active { color: var(--green-ink); background: var(--green); border-color: var(--green); }
+  .chip.has-ic { display: inline-flex; align-items: center; gap: 10px; padding: 0 20px 0 8px; }
+  .chip .ic { width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0; background: var(--panel-2) center / cover no-repeat; }
+  .chip .cnt { font-size: 13px; min-width: 26px; height: 24px; padding: 0 7px; border-radius: 999px; display: inline-flex;
+    align-items: center; justify-content: center; background: var(--line); color: var(--text); }
+  .chip.on .cnt { background: var(--bg); color: var(--text); }
   .chip.edit { color: var(--sub); }
 
   aside { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
@@ -321,7 +328,7 @@ $('etaOk').addEventListener('click', () => {
 function saveEta() { eta = etaPick; store.set('eta', eta); tick(); closeSheet('etaSheet'); }
 
 const DEFAULT_TABS = [
-  { name: '梅田サイファー MV', url: 'https://www.youtube.com/playlist?list=PLzPnarQ3gFjfKUBeI8nZEZ2geaMluC1o8' },
+  { name: '梅田サイファー', url: 'https://www.youtube.com/playlist?list=PLzPnarQ3gFjfKUBeI8nZEZ2geaMluC1o8' },
   { name: 'ジェラードン / 全部（新しい順）', url: 'https://www.youtube.com/playlist?list=UULFRaaCxSF8nEpfG3ZHesXKxw' },
   { name: 'ジェラードン / ネタ【公式】', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDXtN9zVUxRMUtYDiQrbUHp4' },
   { name: 'ジェラードン / 海野くんとおともだち', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDWKSObMmDJ1qTuTiUMnUgU4' },
@@ -367,6 +374,36 @@ function toEmbed(url) {
   return null;
 }
 
+const ICONS = {
+  '梅田サイファー': 'https://yt3.googleusercontent.com/QOLsEZ7QoqIKsKCFBDFYNzO1CV901C6qb_p7glkQsky33UN-0AZo3ur9LD6Pz5aNDeIuMWaIUQ=s88-c-k-c0x00ffffff-no-rj',
+  'ジェラードン': 'https://yt3.googleusercontent.com/0qv3nJHQ_ZNKUHGLJhFOmOjk9u7NasViWP1mmvDH6Cl2GQcGmTaib6IyajlFPOlUTWBYi584=s88-c-k-c0x00ffffff-no-rj'
+};
+function iconFor(name) {
+  const k = Object.keys(ICONS).find((key) => name.startsWith(key));
+  return k ? ICONS[k] : null;
+}
+function chipButton(text, iconName, on, count) {
+  const b = document.createElement('button');
+  const ic = iconFor(iconName);
+  b.className = 'chip' + (on ? ' on' : '') + (ic ? ' has-ic' : '');
+  if (ic) {
+    const i = document.createElement('span');
+    i.className = 'ic';
+    i.style.backgroundImage = 'url("' + ic + '")';
+    b.appendChild(i);
+  }
+  const t = document.createElement('span');
+  t.textContent = text;
+  b.appendChild(t);
+  if (count) {
+    const c = document.createElement('span');
+    c.className = 'cnt';
+    c.textContent = count;
+    b.appendChild(c);
+  }
+  return b;
+}
+
 function splitName(name) {
   const k = name.indexOf(' / ');
   return k < 0 ? { group: null, label: name } : { group: name.slice(0, k).trim(), label: name.slice(k + 3).trim() };
@@ -383,22 +420,20 @@ function renderChips() {
       if (seen.has(sn.group)) return;
       seen.add(sn.group);
       const on = !!(cur && cur.group === sn.group);
-      const b = document.createElement('button');
-      b.className = 'chip' + (on ? ' on' : '');
-      b.textContent = sn.group + (on ? ' · ' + cur.label : ' ▾');
+      const count = tabs.filter((x) => splitName(x.name).group === sn.group).length;
+      const b = chipButton(sn.group + (on ? ' · ' + cur.label : ''), sn.group, on, on ? null : String(count));
       b.addEventListener('click', () => openGroup(sn.group));
       box.appendChild(b);
       return;
     }
-    const b = document.createElement('button');
-    b.className = 'chip' + (i === current ? ' on' : '');
-    b.textContent = t.name;
+    const b = chipButton(t.name, t.name, i === current, null);
     b.addEventListener('click', () => show(i));
     box.appendChild(b);
   });
   const sh = document.createElement('button');
-  sh.className = 'chip' + (ytShuffle ? ' on' : '');
-  sh.textContent = ytShuffle ? 'シャッフル オン' : 'シャッフル オフ';
+  sh.className = 'chip toggle' + (ytShuffle ? ' active' : '');
+  sh.setAttribute('aria-pressed', String(ytShuffle));
+  sh.textContent = '⤮ シャッフル';
   sh.addEventListener('click', () => {
     ytShuffle = !ytShuffle;
     store.set('ytShuffle', ytShuffle);
