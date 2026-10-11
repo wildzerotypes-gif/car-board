@@ -7,7 +7,7 @@
 <title>後部座席ボード</title>
 <style>
   :root {
-    --bg: #141413; --panel: #222220; --panel-2: #2c2c2a; --line: #3a3a37;
+    --bg: #141413; --panel: rgba(30, 30, 28, 0.72); --panel-2: rgba(52, 52, 49, 0.78); --line: #3a3a37;
     --text: #f1efe8; --sub: #b4b2a9; --muted: #888780;
     --green: #1d9e75; --green-ink: #04342c; --red: #e24b4a; --amber: #ef9f27;
     --r: 14px; --tap: 60px;
@@ -19,7 +19,9 @@
   button { font: inherit; color: inherit; background: var(--panel-2); border: 0; border-radius: var(--r);
     min-height: var(--tap); cursor: pointer; touch-action: manipulation; }
   button:active { transform: scale(0.97); background: var(--line); }
-  .app { height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) 340px;
+  .wall { position: fixed; inset: -60px; z-index: 0; background: var(--bg) center / cover no-repeat;
+    filter: blur(26px) brightness(0.38) saturate(1.15); transition: opacity 0.6s; pointer-events: none; }
+  .app { position: relative; z-index: 1; height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) 340px;
     grid-template-rows: auto minmax(0, 1fr); gap: 12px; padding: 12px; }
   header { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; }
   .clock { font-size: 40px; font-weight: 600; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
@@ -55,8 +57,9 @@
   aside { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
   .card { background: var(--panel); border-radius: var(--r); padding: 14px; }
   .label { color: var(--sub); font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
-  .label .gear { margin-left: auto; min-height: 40px; padding: 0 14px; font-size: 14px; color: var(--sub); }
-  .label span.dev { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .label .gear { min-height: 40px; padding: 0 14px; font-size: 14px; color: var(--sub); flex-shrink: 0; }
+  .label .gear.on { background: var(--green); color: var(--green-ink); }
+  .label span.dev { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .now { display: flex; gap: 12px; align-items: center; }
   .art { width: 76px; height: 76px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center;
     justify-content: center; font-size: 30px; font-weight: 700; color: rgba(255,255,255,0.85);
@@ -110,6 +113,7 @@
 </style>
 </head>
 <body>
+<div class="wall" id="wall"></div>
 <div class="app">
   <header>
     <div>
@@ -142,6 +146,7 @@
   <aside>
     <div class="card">
       <p class="label"><span class="dot idle" id="spDot"></span><span class="dev" id="spDev">Spotify</span>
+        <button class="gear hidden" id="spShuf" aria-pressed="false">シャッフル</button>
         <button class="gear" id="spGear">設定</button></p>
 
       <div id="spOff">
@@ -341,6 +346,16 @@ function renderChips() {
     b.addEventListener('click', () => show(i));
     box.appendChild(b);
   });
+  const sh = document.createElement('button');
+  sh.className = 'chip' + (ytShuffle ? ' on' : '');
+  sh.textContent = ytShuffle ? 'シャッフル オン' : 'シャッフル オフ';
+  sh.addEventListener('click', () => {
+    ytShuffle = !ytShuffle;
+    store.set('ytShuffle', ytShuffle);
+    if (ytFrame && ytFrame.started) ytCmd('setShuffle', [ytShuffle]);
+    renderChips();
+  });
+  box.appendChild(sh);
   const e = document.createElement('button');
   e.className = 'chip edit';
   e.textContent = '編集';
@@ -374,10 +389,30 @@ function show(i) {
   f.referrerPolicy = 'strict-origin-when-cross-origin';
   f.title = tabs[i].name;
   scr.appendChild(f);
+  updateWall();
   if (sp.state && sp.state.is_playing) spAction('pause', 'PUT', '/me/player/pause');
 }
 
 let ytFrame = null;
+let ytShuffle = store.get('ytShuffle', false);
+function ytCmd(func, args) {
+  if (ytFrame && ytFrame.el.contentWindow) ytFrame.el.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args: args || [] }), '*');
+}
+const DEFAULT_WALL = 'https://yt3.googleusercontent.com/R1TI_G-g5HGDMzauSNCGDPnXS7Am8WxhVa9ZHf2G1o_Z_WYEVGeIqM7ZgRHT_cP_K2B7ThhpAw=w1920-fcrop64=1,00005a57ffffa5a8-k-c0xffffffff-no-nd-rj';
+let wallUrl = null;
+function updateWall() {
+  let url = DEFAULT_WALL;
+  if (typeof mode !== 'undefined' && mode === 'yt' && ytFrame && ytFrame.vid) {
+    url = 'https://i.ytimg.com/vi/' + ytFrame.vid + '/hqdefault.jpg';
+  } else if (typeof mode !== 'undefined' && mode !== 'yt' && sp.state && sp.state.item) {
+    const it = sp.state.item;
+    const imgs = (it.album && it.album.images) || it.images || [];
+    if (imgs.length) url = imgs[0].url;
+  }
+  if (url === wallUrl) return;
+  wallUrl = url;
+  $('wall').style.backgroundImage = 'url("' + url + '")';
+}
 const YT_ERRORS = {
   2: 'URL の動画 ID が正しくありません',
   5: 'この端末では再生できない動画です',
@@ -391,7 +426,17 @@ addEventListener('message', (e) => {
   let d;
   try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (x) { return; }
   if (!d) return;
+  if (d.event === 'infoDelivery' && d.info && d.info.videoData && d.info.videoData.video_id && d.info.videoData.video_id !== ytFrame.vid) {
+    ytFrame.vid = d.info.videoData.video_id;
+    updateWall();
+  }
   const st = d.event === 'onStateChange' ? d.info : (d.event === 'infoDelivery' && d.info ? d.info.playerState : null);
+  if (d.event === 'onReady' && !ytFrame.started) {
+    ytFrame.started = true;
+    if (ytFrame.isList && ytShuffle) { ytCmd('setShuffle', [true]); ytCmd('playVideoAt', [0]); }
+    else ytCmd('playVideo');
+    return;
+  }
   if (d.event === 'infoDelivery' && d.info && Array.isArray(d.info.playlist) && d.info.playlist.length) ytFrame.listReady = true;
   if (st === 1) { ytFrame.skips = 0; return; }
   if (d.event !== 'onError') return;
@@ -572,6 +617,7 @@ function setMode(m) {
   renderBig();
 }
 function renderBig() {
+  updateWall();
   const s = sp.state;
   const on = !!sp.tok && (mode === 'spotify' || (mode === 'idle' && !!(s && s.item)));
   $('big').classList.toggle('hidden', !on);
@@ -606,6 +652,9 @@ function renderSp() {
   if (!on) { $('spDev').textContent = 'Spotify'; return; }
   const s = sp.state;
   $('spDev').textContent = s && s.device ? 'Spotify · ' + s.device.name : 'Spotify · 再生中の機器なし';
+  $('spShuf').classList.toggle('hidden', !(s && s.device));
+  $('spShuf').classList.toggle('on', !!(s && s.shuffle_state));
+  $('spShuf').setAttribute('aria-pressed', String(!!(s && s.shuffle_state)));
   const noVol = !!(s && s.device && s.device.supports_volume === false);
   $('volRow').classList.toggle('hidden', noVol);
   $('volNote').classList.toggle('hidden', !noVol);
@@ -658,6 +707,13 @@ $('play').addEventListener('click', () => {
   else { s.is_playing = true; sp.at = Date.now(); setMode('spotify'); renderSp(); spAction('play', 'PUT', '/me/player/play'); }
 });
 $('next').addEventListener('click', () => spAction('next', 'POST', '/me/player/next'));
+$('spShuf').addEventListener('click', () => {
+  const s = sp.state;
+  if (!s || !s.device) { openDevices(); return; }
+  s.shuffle_state = !s.shuffle_state;
+  renderSp();
+  spAction('shuffle', 'PUT', '/me/player/shuffle?state=' + s.shuffle_state);
+});
 $('prev').addEventListener('click', () => spAction('prev', 'POST', '/me/player/previous'));
 function changeVol(d) {
   const s = sp.state;
