@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#141413">
+<title>後部座席ボード</title>
+<style>
+  :root {
+    --bg: #141413; --panel: #222220; --panel-2: #2c2c2a; --line: #3a3a37;
+    --text: #f1efe8; --sub: #b4b2a9; --muted: #888780;
+    --green: #1d9e75; --green-ink: #04342c; --red: #e24b4a; --amber: #ef9f27;
+    --r: 14px; --tap: 60px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+    -webkit-tap-highlight-color: transparent; user-select: none; }
+  button { font: inherit; color: inherit; background: var(--panel-2); border: 0; border-radius: var(--r);
+    min-height: var(--tap); cursor: pointer; touch-action: manipulation; }
+  button:active { transform: scale(0.97); background: var(--line); }
+  .app { height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) 340px;
+    grid-template-rows: auto minmax(0, 1fr); gap: 12px; padding: 12px; }
+  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; }
+  .clock { font-size: 40px; font-weight: 600; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+  .date { color: var(--sub); font-size: 16px; }
+  .spacer { flex: 1; }
+  .pill { display: flex; align-items: center; gap: 8px; padding: 0 18px; min-height: 52px;
+    background: var(--panel); border-radius: 999px; font-size: 17px; }
+  .pill small { color: var(--sub); font-size: 14px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .dot.off { background: var(--red); }
+  .dot.idle { background: var(--muted); }
+
+  .main { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .screen { flex: 1; min-height: 0; background: #000; border-radius: var(--r); overflow: hidden; position: relative; }
+  .screen iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 10px; color: var(--sub); font-size: 18px; text-align: center; padding: 24px; }
+  .empty b { color: var(--text); font-size: 22px; }
+  .chips { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: 0 0 auto; padding: 0 22px; min-height: 56px; border-radius: 999px; font-size: 17px; background: var(--panel); }
+  .chip.on { background: var(--text); color: var(--bg); }
+  .chip.edit { color: var(--sub); }
+
+  aside { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .card { background: var(--panel); border-radius: var(--r); padding: 14px; }
+  .label { color: var(--sub); font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  .label .gear { margin-left: auto; min-height: 40px; padding: 0 14px; font-size: 14px; color: var(--sub); }
+  .label span.dev { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .now { display: flex; gap: 12px; align-items: center; }
+  .art { width: 76px; height: 76px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center;
+    justify-content: center; font-size: 30px; font-weight: 700; color: rgba(255,255,255,0.85);
+    background: var(--panel-2) center / cover no-repeat; }
+  .title { font-size: 19px; font-weight: 600; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .artist { font-size: 15px; color: var(--sub); margin: 2px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar { height: 6px; background: var(--line); border-radius: 3px; margin: 14px 0 4px; overflow: hidden; }
+  .bar > div { height: 100%; background: var(--green); width: 0; }
+  .times { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .ctrl { display: grid; grid-template-columns: 1fr 1.3fr 1fr; gap: 10px; margin-top: 10px; }
+  .ctrl button { font-size: 26px; min-height: 68px; }
+  .ctrl .play { background: var(--green); color: var(--green-ink); }
+  .vol { display: grid; grid-template-columns: var(--tap) 1fr var(--tap); gap: 10px; align-items: center; margin-top: 10px; }
+  .vol button { font-size: 26px; }
+  .vol .meter { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
+  .vol .meter > div { height: 100%; background: var(--sub); }
+  .connect { width: 100%; background: var(--green); color: var(--green-ink); font-weight: 600; font-size: 18px; margin-top: 4px; }
+  .lists { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .lists button { font-size: 15px; padding: 6px 10px; text-align: left; overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.35; }
+  .lists button.on { outline: 2px solid var(--green); }
+  .lists .note { grid-column: 1 / -1; color: var(--muted); font-size: 14px; margin: 0; }
+  .grow { flex: 1; min-height: 0; overflow: auto; }
+  .hidden { display: none !important; }
+
+  .sheet { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 10; }
+  .sheet.show { display: flex; }
+  .box { background: var(--panel); border-radius: 18px; padding: 20px; width: min(640px, 92vw); max-height: 90vh; overflow: auto; }
+  .box h2 { margin: 0 0 8px; font-size: 22px; }
+  .box p { color: var(--sub); margin: 0 0 12px; font-size: 15px; line-height: 1.6; }
+  .box code { background: var(--bg); padding: 2px 6px; border-radius: 6px; font-size: 14px; user-select: all; word-break: break-all; }
+  .box textarea, .box input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line);
+    border-radius: 10px; font: inherit; font-size: 16px; padding: 12px; user-select: text; }
+  .box textarea { min-height: 180px; }
+  .row { display: flex; gap: 10px; margin-top: 14px; }
+  .row button { flex: 1; font-size: 18px; }
+  .row .ok { background: var(--green); color: var(--green-ink); font-weight: 600; }
+  .quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+  .quick button { font-size: 18px; }
+  .devs { display: flex; flex-direction: column; gap: 10px; }
+  .devs button { text-align: left; padding: 0 16px; font-size: 17px; }
+  .devs button small { color: var(--sub); margin-left: 8px; font-size: 14px; }
+  .err { color: var(--amber); font-size: 14px; min-height: 20px; margin-top: 6px; }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--text); color: var(--bg);
+    padding: 12px 20px; border-radius: 999px; font-size: 16px; z-index: 20; max-width: 90vw; }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: auto minmax(240px, 1fr) auto; height: auto; min-height: 100vh; }
+    .clock { font-size: 32px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <div class="clock" id="clock">--:--</div>
+      <div class="date" id="date"></div>
+    </div>
+    <div class="spacer"></div>
+    <button class="pill" id="etaBtn" aria-label="到着予定を設定">
+      <span id="etaText">到着予定を入れる</span>
+    </button>
+    <div class="pill" id="net"><span class="dot" id="netDot"></span><small id="netText">Wi‑Fi</small></div>
+  </header>
+
+  <section class="main">
+    <div class="screen" id="screen">
+      <div class="empty" id="empty"><b>見たいものを下から選ぶ</b>再生リストは右端の「編集」で入れ替えられます</div>
+    </div>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <p class="label"><span class="dot idle" id="spDot"></span><span class="dev" id="spDev">Spotify</span>
+        <button class="gear" id="spGear">設定</button></p>
+
+      <div id="spOff">
+        <p class="artist" style="white-space:normal;margin:0 0 10px">Spotify につなぐと、Fire HD の Spotify アプリをここから操作できます。</p>
+        <button class="connect" id="spConnect">Spotify につなぐ</button>
+      </div>
+
+      <div id="spOn" class="hidden">
+        <div class="now">
+          <div class="art" id="art"></div>
+          <div style="min-width:0">
+            <p class="title" id="trTitle">-</p>
+            <p class="artist" id="trArtist">-</p>
+          </div>
+        </div>
+        <div class="bar"><div id="prog"></div></div>
+        <div class="times"><span id="tNow">0:00</span><span id="tLen">0:00</span></div>
+        <div class="ctrl">
+          <button id="prev" aria-label="前の曲">⏮</button>
+          <button id="play" class="play" aria-label="再生・一時停止">▶</button>
+          <button id="next" aria-label="次の曲">⏭</button>
+        </div>
+        <p class="artist hidden" id="volNote" style="margin:12px 0 0">この機器の音量は本体のボタンで変えます</p>
+        <div class="vol" id="volRow">
+          <button id="vDown" aria-label="音量を下げる">−</button>
+          <div class="meter"><div id="vMeter"></div></div>
+          <button id="vUp" aria-label="音量を上げる">＋</button>
+        </div>
+      </div>
+    </div>
+    <div class="card grow">
+      <p class="label">プレイリスト</p>
+      <div class="lists" id="lists"><p class="note">Spotify につなぐと、自分のプレイリストが並びます</p></div>
+    </div>
+  </aside>
+</div>
+
+<div class="sheet" id="etaSheet" role="dialog" aria-modal="true" aria-labelledby="etaH">
+  <div class="box">
+    <h2 id="etaH">到着予定</h2>
+    <p>あと何分か、または到着時刻を入れます。</p>
+    <div class="quick" id="quick"></div>
+    <input id="etaInput" type="time" aria-label="到着時刻">
+    <div class="err" id="etaErr"></div>
+    <div class="row">
+      <button id="etaClear">消す</button>
+      <button id="etaCancel">閉じる</button>
+      <button id="etaOk" class="ok">決定</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="editSheet" role="dialog" aria-modal="true" aria-labelledby="editH">
+  <div class="box">
+    <h2 id="editH">YouTube の再生リスト</h2>
+    <p>1 行に 1 つ、「名前 | URL」で書きます。動画・再生リスト・ライブの URL が使えます。</p>
+    <textarea id="editText" spellcheck="false"></textarea>
+    <div class="err" id="editErr"></div>
+    <div class="row">
+      <button id="editCancel">閉じる</button>
+      <button id="editOk" class="ok">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="spSheet" role="dialog" aria-modal="true" aria-labelledby="spH">
+  <div class="box">
+    <h2 id="spH">Spotify の設定</h2>
+    <p>Spotify の開発者サイトで作ったアプリの Client ID を入れます。アプリの Redirect URI には、次の文字列をそのまま登録してください。</p>
+    <p><code id="spRedirect"></code></p>
+    <p class="err" id="spHostWarn"></p>
+    <input id="spCid" placeholder="Client ID（32 文字の英数字）" autocomplete="off" spellcheck="false">
+    <div class="err" id="spErr"></div>
+    <div class="row">
+      <button id="spLogout">ログアウト</button>
+      <button id="spCancel">閉じる</button>
+      <button id="spSave" class="ok">保存してつなぐ</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="devSheet" role="dialog" aria-modal="true" aria-labelledby="devH">
+  <div class="box">
+    <h2 id="devH">再生する機器を選ぶ</h2>
+    <p id="devNote">Spotify アプリが開いている機器が並びます。</p>
+    <div class="devs" id="devs"></div>
+    <div class="row">
+      <button id="devReload">もう一度探す</button>
+      <button id="devCancel">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast" role="status"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('carboard.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { if (v == null) localStorage.removeItem('carboard.' + k); else localStorage.setItem('carboard.' + k, JSON.stringify(v)); } catch (e) {} }
+};
+let toastTimer = 0;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.add('hidden'), 3500);
+}
+
+const pad = (n) => String(n).padStart(2, '0');
+const WD = ['日', '月', '火', '水', '木', '金', '土'];
+let eta = store.get('eta', null);
+
+function tick() {
+  const d = new Date();
+  $('clock').textContent = d.getHours() + ':' + pad(d.getMinutes());
+  $('date').textContent = (d.getMonth() + 1) + '月' + d.getDate() + '日（' + WD[d.getDay()] + '）';
+  if (eta) {
+    const t = new Date(eta);
+    const left = Math.round((t - d) / 60000);
+    $('etaText').innerHTML = '到着 ' + t.getHours() + ':' + pad(t.getMinutes()) +
+      ' <small>' + (left > 0 ? 'あと ' + left + ' 分' : 'まもなく') + '</small>';
+  } else {
+    $('etaText').textContent = '到着予定を入れる';
+  }
+  const on = navigator.onLine;
+  $('netDot').classList.toggle('off', !on);
+  $('netText').textContent = on ? 'Wi‑Fi' : 'オフライン';
+}
+setInterval(tick, 1000);
+tick();
+
+function openSheet(id) { $(id).classList.add('show'); }
+function closeSheet(id) { $(id).classList.remove('show'); }
+
+let etaPick = null;
+[15, 30, 45, 60, 90, 120, 180, 240].forEach((m) => {
+  const b = document.createElement('button');
+  b.textContent = m < 60 ? m + ' 分' : (m / 60) + ' 時間';
+  b.addEventListener('click', () => { etaPick = Date.now() + m * 60000; $('etaInput').value = ''; $('etaErr').textContent = ''; saveEta(); });
+  $('quick').appendChild(b);
+});
+$('etaBtn').addEventListener('click', () => { etaPick = null; $('etaErr').textContent = ''; openSheet('etaSheet'); });
+$('etaCancel').addEventListener('click', () => closeSheet('etaSheet'));
+$('etaClear').addEventListener('click', () => { eta = null; store.set('eta', null); tick(); closeSheet('etaSheet'); });
+$('etaInput').addEventListener('input', () => { $('etaErr').textContent = ''; });
+$('etaOk').addEventListener('click', () => {
+  const v = $('etaInput').value;
+  if (!v) { $('etaErr').textContent = '時刻を入れるか、上のボタンで選んでください'; return; }
+  const [h, m] = v.split(':').map(Number);
+  const t = new Date(); t.setHours(h, m, 0, 0);
+  if (t < new Date()) t.setDate(t.getDate() + 1);
+  etaPick = t.getTime();
+  saveEta();
+});
+function saveEta() { eta = etaPick; store.set('eta', eta); tick(); closeSheet('etaSheet'); }
+
+const DEFAULT_TABS = [
+  { name: 'あとで見る', url: '' },
+  { name: '登録チャンネル', url: '' },
+  { name: '音楽ライブ', url: '' }
+];
+let tabs = store.get('tabs', DEFAULT_TABS);
+let current = -1;
+
+function toEmbed(url) {
+  let u;
+  try { u = new URL(url.trim()); } catch (e) { return null; }
+  const host = u.hostname.replace(/^www\.|^m\./, '');
+  let id = null;
+  const list = u.searchParams.get('list');
+  if (host === 'youtu.be') id = u.pathname.slice(1);
+  else if (host === 'youtube.com' || host === 'music.youtube.com') {
+    if (u.pathname === '/watch') id = u.searchParams.get('v');
+    else { const m = u.pathname.match(/^\/(live|shorts|embed)\/([\w-]+)/); if (m) id = m[2]; }
+  } else return null;
+  const q = 'playsinline=1&rel=0&modestbranding=1';
+  if (id && list) return 'https://www.youtube-nocookie.com/embed/' + id + '?list=' + encodeURIComponent(list) + '&' + q;
+  if (id) return 'https://www.youtube-nocookie.com/embed/' + id + '?' + q;
+  if (list) return 'https://www.youtube-nocookie.com/embed/videoseries?list=' + encodeURIComponent(list) + '&' + q;
+  return null;
+}
+
+function renderChips() {
+  const box = $('chips');
+  box.innerHTML = '';
+  tabs.forEach((t, i) => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (i === current ? ' on' : '');
+    b.textContent = t.name;
+    b.addEventListener('click', () => show(i));
+    box.appendChild(b);
+  });
+  const e = document.createElement('button');
+  e.className = 'chip edit';
+  e.textContent = '編集';
+  e.addEventListener('click', openEdit);
+  box.appendChild(e);
+}
+
+function show(i) {
+  current = i;
+  renderChips();
+  const scr = $('screen');
+  scr.querySelectorAll('iframe').forEach((f) => f.remove());
+  const src = toEmbed(tabs[i].url || '');
+  const empty = $('empty');
+  if (!src) {
+    empty.style.display = '';
+    empty.innerHTML = '<b>「' + escapeHtml(tabs[i].name) + '」は URL が空です</b>右端の「編集」で YouTube の URL を入れてください';
+    return;
+  }
+  empty.style.display = 'none';
+  const f = document.createElement('iframe');
+  f.src = src;
+  f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+  f.allowFullscreen = true;
+  f.referrerPolicy = 'strict-origin-when-cross-origin';
+  f.title = tabs[i].name;
+  scr.appendChild(f);
+  if (sp.state && sp.state.is_playing) spAction('pause', 'PUT', '/me/player/pause');
+}
+
+function escapeHtml(s) { return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+function openEdit() {
+  $('editText').value = tabs.map((t) => t.name + ' | ' + t.url).join('\n');
+  $('editErr').textContent = '';
+  openSheet('editSheet');
+}
+$('editCancel').addEventListener('click', () => closeSheet('editSheet'));
+$('editText').addEventListener('input', () => { $('editErr').textContent = ''; });
+$('editOk').addEventListener('click', () => {
+  const lines = $('editText').value.split('\n').map((l) => l.trim()).filter(Boolean);
+  const next = [];
+  for (const l of lines) {
+    const k = l.indexOf('|');
+    const name = (k < 0 ? l : l.slice(0, k)).trim();
+    const url = k < 0 ? '' : l.slice(k + 1).trim();
+    if (!name) { $('editErr').textContent = '名前が空の行があります: ' + l; return; }
+    if (url && !toEmbed(url)) { $('editErr').textContent = 'YouTube の URL として読めません: ' + name; return; }
+    next.push({ name, url });
+  }
+  if (!next.length) { $('editErr').textContent = '1 行以上入れてください'; return; }
+  tabs = next;
+  store.set('tabs', tabs);
+  current = -1;
+  $('screen').querySelectorAll('iframe').forEach((f) => f.remove());
+  $('empty').style.display = '';
+  $('empty').innerHTML = '<b>見たいものを下から選ぶ</b>再生リストは右端の「編集」で入れ替えられます';
+  renderChips();
+  closeSheet('editSheet');
+});
+renderChips();
+
+/* ---------- Spotify（Authorization Code + PKCE・秘密情報なし） ---------- */
+const AUTH = 'https://accounts.spotify.com';
+const API = 'https://api.spotify.com/v1';
+const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private playlist-read-collaborative';
+const sp = { cid: store.get('sp.cid', ''), tok: store.get('sp.tok', null), state: null, at: 0, lists: [], pendingUri: null, backoff: 0 };
+const redirectUri = () => location.origin + location.pathname;
+const fmt = (ms) => { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + pad(s % 60); };
+
+function b64url(bytes) { return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function randomString(n) {
+  const abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  const a = crypto.getRandomValues(new Uint8Array(n));
+  return Array.from(a, (b) => abc[b % abc.length]).join('');
+}
+async function challengeOf(verifier) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  return b64url(new Uint8Array(d));
+}
+
+async function login() {
+  if (!sp.cid) { openSpSettings(); return; }
+  if (!window.isSecureContext || !crypto.subtle) { toast('このページは https か 127.0.0.1 で開く必要があります'); return; }
+  const verifier = randomString(64);
+  const state = randomString(16);
+  store.set('sp.pkce', { verifier, state });
+  const q = new URLSearchParams({
+    response_type: 'code', client_id: sp.cid, scope: SCOPES, redirect_uri: redirectUri(),
+    code_challenge_method: 'S256', code_challenge: await challengeOf(verifier), state
+  });
+  location.assign(AUTH + '/authorize?' + q);
+}
+
+async function tokenRequest(body) {
+  const r = await fetch(AUTH + '/api/token', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(body)
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(j.error_description || j.error || 'token ' + r.status), { status: r.status, code: j.error });
+  return j;
+}
+function saveTok(j) {
+  sp.tok = { access: j.access_token, refresh: j.refresh_token || (sp.tok && sp.tok.refresh), exp: Date.now() + (j.expires_in || 3600) * 1000 };
+  store.set('sp.tok', sp.tok);
+}
+
+async function handleCallback() {
+  const p = new URLSearchParams(location.search);
+  if (!p.has('code') && !p.has('error')) return;
+  history.replaceState(null, '', location.pathname);
+  const saved = store.get('sp.pkce', null);
+  store.set('sp.pkce', null);
+  if (p.get('error')) { toast(p.get('error') === 'access_denied' ? 'Spotify のログインを取り消しました' : 'Spotify のログインに失敗: ' + p.get('error')); return; }
+  if (!saved || saved.state !== p.get('state')) { toast('ログインの照合に失敗しました。もう一度つないでください'); return; }
+  try {
+    saveTok(await tokenRequest({ grant_type: 'authorization_code', code: p.get('code'), redirect_uri: redirectUri(), client_id: sp.cid, code_verifier: saved.verifier }));
+    toast('Spotify につながりました');
+  } catch (e) { toast('トークンの取得に失敗: ' + e.message); }
+}
+
+async function accessToken() {
+  if (!sp.tok) return null;
+  if (Date.now() < sp.tok.exp - 60000) return sp.tok.access;
+  try {
+    const body = new URLSearchParams({ grant_type: 'refresh_token', client_id: sp.cid });
+    body.set('refresh_token', sp.tok.refresh);
+    saveTok(await tokenRequest(body));
+    return sp.tok.access;
+  } catch (e) {
+    if (e.status === 400) { logout(); toast('Spotify のログインが切れました。もう一度つないでください'); }
+    throw e;
+  }
+}
+
+async function api(method, path, body, retried) {
+  const t = await accessToken();
+  if (!t) throw Object.assign(new Error('not logged in'), { status: 0 });
+  const r = await fetch(API + path, {
+    method, headers: Object.assign({ Authorization: 'Bearer ' + t }, body ? { 'Content-Type': 'application/json' } : {}),
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (r.status === 401 && !retried) { sp.tok.exp = 0; return api(method, path, body, true); }
+  if (r.status === 429) { sp.backoff = Date.now() + (Number(r.headers.get('Retry-After')) || 5) * 1000; }
+  if (r.status === 204 || r.status === 202) return null;
+  const text = await r.text();
+  let j = null;
+  try { j = text ? JSON.parse(text) : null; } catch (e) { j = null; }
+  if (!r.ok) {
+    const er = (j && j.error) || {};
+    throw Object.assign(new Error(er.message || 'HTTP ' + r.status), { status: r.status, reason: er.reason });
+  }
+  return j;
+}
+
+function logout() {
+  sp.tok = null; sp.state = null; sp.lists = [];
+  store.set('sp.tok', null);
+  renderSp(); renderLists();
+}
+
+async function poll() {
+  if (!sp.tok || document.hidden || Date.now() < sp.backoff) return;
+  try {
+    sp.state = await api('GET', '/me/player?additional_types=episode');
+    sp.at = Date.now();
+  } catch (e) { if (e.status === 0) return; }
+  renderSp();
+}
+
+function nowPos() {
+  const s = sp.state;
+  if (!s || !s.item) return 0;
+  const p = (s.progress_ms || 0) + (s.is_playing ? Date.now() - sp.at : 0);
+  return Math.min(p, s.item.duration_ms || p);
+}
+
+function renderSp() {
+  const on = !!sp.tok;
+  $('spOff').classList.toggle('hidden', on);
+  $('spOn').classList.toggle('hidden', !on);
+  const dot = $('spDot');
+  dot.className = 'dot' + (on ? (sp.state ? '' : ' idle') : ' idle');
+  if (!on) { $('spDev').textContent = 'Spotify'; return; }
+  const s = sp.state;
+  $('spDev').textContent = s && s.device ? 'Spotify · ' + s.device.name : 'Spotify · 再生中の機器なし';
+  const noVol = !!(s && s.device && s.device.supports_volume === false);
+  $('volRow').classList.toggle('hidden', noVol);
+  $('volNote').classList.toggle('hidden', !noVol);
+  if (!s || !s.item) {
+    $('trTitle').textContent = s ? '再生していません' : '再生中の機器がありません';
+    $('trArtist').textContent = '▶ で機器を選んで再生';
+    $('art').style.backgroundImage = ''; $('art').textContent = '♪';
+    $('prog').style.width = '0'; $('tNow').textContent = '0:00'; $('tLen').textContent = '0:00';
+    $('play').textContent = '▶';
+    $('vMeter').style.width = (s && s.device ? s.device.volume_percent || 0 : 0) + '%';
+    return;
+  }
+  const it = s.item;
+  const imgs = (it.album && it.album.images) || it.images || [];
+  $('trTitle').textContent = it.name;
+  $('trArtist').textContent = it.artists ? it.artists.map((a) => a.name).join(', ') : (it.show ? it.show.name : '');
+  if (imgs.length) { $('art').style.backgroundImage = 'url("' + imgs[0].url + '")'; $('art').textContent = ''; }
+  else { $('art').style.backgroundImage = ''; $('art').textContent = it.name ? it.name[0] : '♪'; }
+  const pos = nowPos();
+  $('tNow').textContent = fmt(pos);
+  $('tLen').textContent = fmt(it.duration_ms || 0);
+  $('prog').style.width = (it.duration_ms ? pos / it.duration_ms * 100 : 0).toFixed(1) + '%';
+  $('play').textContent = s.is_playing ? '⏸' : '▶';
+  $('vMeter').style.width = (s.device && s.device.volume_percent != null ? s.device.volume_percent : 0) + '%';
+}
+
+const REASONS = {
+  NO_ACTIVE_DEVICE: '再生中の機器がありません',
+  PREMIUM_REQUIRED: 'この操作には Spotify Premium が必要です',
+  VOLUME_CONTROL_DISALLOW: 'この機器は画面から音量を変えられません',
+  UNKNOWN: 'Spotify が操作を受け付けませんでした'
+};
+async function spAction(label, method, path, body) {
+  try {
+    await api(method, path, body);
+    setTimeout(poll, 500);
+    return true;
+  } catch (e) {
+    if (e.status === 404 && (e.reason === 'NO_ACTIVE_DEVICE' || /device/i.test(e.message))) { openDevices(); return false; }
+    if (e.status === 429) { toast('操作が多すぎます。少し待ってください'); return false; }
+    toast(REASONS[e.reason] || ('Spotify: ' + e.message));
+    return false;
+  }
+}
+
+$('play').addEventListener('click', () => {
+  const s = sp.state;
+  if (!s || !s.device) { openDevices(); return; }
+  if (s.is_playing) { s.progress_ms = nowPos(); s.is_playing = false; sp.at = Date.now(); renderSp(); spAction('pause', 'PUT', '/me/player/pause'); }
+  else { s.is_playing = true; sp.at = Date.now(); renderSp(); spAction('play', 'PUT', '/me/player/play'); }
+});
+$('next').addEventListener('click', () => spAction('next', 'POST', '/me/player/next'));
+$('prev').addEventListener('click', () => spAction('prev', 'POST', '/me/player/previous'));
+function changeVol(d) {
+  const s = sp.state;
+  if (!s || !s.device) { openDevices(); return; }
+  const v = Math.max(0, Math.min(100, (s.device.volume_percent || 0) + d));
+  s.device.volume_percent = v;
+  renderSp();
+  spAction('volume', 'PUT', '/me/player/volume?volume_percent=' + v);
+}
+$('vDown').addEventListener('click', () => changeVol(-10));
+$('vUp').addEventListener('click', () => changeVol(10));
+
+async function loadLists() {
+  if (!sp.tok) return;
+  try {
+    const j = await api('GET', '/me/playlists?limit=20');
+    sp.lists = (j && j.items ? j.items : []).filter(Boolean);
+  } catch (e) { sp.lists = []; }
+  renderLists();
+}
+function renderLists() {
+  const box = $('lists');
+  box.innerHTML = '';
+  if (!sp.tok) { box.innerHTML = '<p class="note">Spotify につなぐと、自分のプレイリストが並びます</p>'; return; }
+  if (!sp.lists.length) { box.innerHTML = '<p class="note">プレイリストが見つかりません</p>'; return; }
+  const ctx = sp.state && sp.state.context ? sp.state.context.uri : '';
+  sp.lists.forEach((p) => {
+    const b = document.createElement('button');
+    b.textContent = p.name;
+    if (p.uri === ctx) b.className = 'on';
+    b.addEventListener('click', async () => {
+      sp.pendingUri = p.uri;
+      const body = { context_uri: p.uri };
+      const devId = sp.state && sp.state.device ? sp.state.device.id : null;
+      if (await spAction('play list', 'PUT', '/me/player/play' + (devId ? '?device_id=' + encodeURIComponent(devId) : ''), body)) sp.pendingUri = null;
+    });
+    box.appendChild(b);
+  });
+}
+
+async function openDevices() {
+  if (!sp.tok) { login(); return; }
+  openSheet('devSheet');
+  const box = $('devs');
+  box.innerHTML = '<p class="artist">探しています…</p>';
+  let list = [];
+  try { const j = await api('GET', '/me/player/devices'); list = (j && j.devices) || []; } catch (e) { list = []; }
+  box.innerHTML = '';
+  if (!list.length) {
+    $('devNote').textContent = '見つかりません。Fire HD で Spotify アプリを一度開いてから「もう一度探す」を押してください。';
+    return;
+  }
+  $('devNote').textContent = 'Spotify アプリが開いている機器が並びます。';
+  list.forEach((d) => {
+    const b = document.createElement('button');
+    b.innerHTML = escapeHtml(d.name) + '<small>' + escapeHtml(d.type) + (d.is_active ? ' · 再生中' : '') + '</small>';
+    b.addEventListener('click', async () => {
+      closeSheet('devSheet');
+      if (sp.pendingUri) {
+        if (await spAction('play list', 'PUT', '/me/player/play?device_id=' + encodeURIComponent(d.id), { context_uri: sp.pendingUri })) sp.pendingUri = null;
+      } else {
+        await spAction('transfer', 'PUT', '/me/player', { device_ids: [d.id], play: true });
+      }
+    });
+    box.appendChild(b);
+  });
+}
+$('devReload').addEventListener('click', openDevices);
+$('devCancel').addEventListener('click', () => { sp.pendingUri = null; closeSheet('devSheet'); });
+
+function openSpSettings() {
+  $('spRedirect').textContent = redirectUri();
+  $('spHostWarn').textContent = location.hostname === 'localhost'
+    ? 'Spotify は localhost を受け付けません。アドレスの localhost を 127.0.0.1 に変えて開き直してください。' : '';
+  $('spCid').value = sp.cid;
+  $('spErr').textContent = '';
+  $('spLogout').classList.toggle('hidden', !sp.tok);
+  openSheet('spSheet');
+}
+$('spGear').addEventListener('click', openSpSettings);
+$('spConnect').addEventListener('click', login);
+$('spCancel').addEventListener('click', () => closeSheet('spSheet'));
+$('spCid').addEventListener('input', () => { $('spErr').textContent = ''; });
+$('spLogout').addEventListener('click', () => { logout(); closeSheet('spSheet'); });
+$('spSave').addEventListener('click', () => {
+  const v = $('spCid').value.trim();
+  if (!/^[0-9a-f]{32}$/i.test(v)) { $('spErr').textContent = 'Client ID は 32 文字の英数字です。開発者サイトの値をそのまま貼ってください'; return; }
+  if (v !== sp.cid) logout();
+  sp.cid = v;
+  store.set('sp.cid', v);
+  closeSheet('spSheet');
+  login();
+});
+
+setInterval(() => { if (sp.state && sp.state.is_playing) renderSp(); }, 1000);
+setInterval(poll, 4000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+
+(async () => {
+  await handleCallback();
+  renderSp();
+  if (sp.tok) { await poll(); await loadLists(); }
+})();
+</script>
+</body>
+</html>
