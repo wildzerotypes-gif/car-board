@@ -339,7 +339,11 @@ function show(i) {
   }
   empty.style.display = 'none';
   const f = document.createElement('iframe');
-  f.src = src;
+  f.src = src + '&enablejsapi=1&origin=' + encodeURIComponent(location.origin);
+  f.addEventListener('load', () => {
+    for (let k = 0; k < 6; k++) setTimeout(() => { if (f.contentWindow) f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'board' }), '*'); }, k * 500);
+  });
+  ytFrame = { el: f, name: tabs[i].name, url: tabs[i].url };
   f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
   f.allowFullscreen = true;
   f.referrerPolicy = 'strict-origin-when-cross-origin';
@@ -347,6 +351,30 @@ function show(i) {
   scr.appendChild(f);
   if (sp.state && sp.state.is_playing) spAction('pause', 'PUT', '/me/player/pause');
 }
+
+let ytFrame = null;
+const YT_ERRORS = {
+  2: 'URL の動画 ID が正しくありません',
+  5: 'この端末では再生できない動画です',
+  100: '動画が削除されたか、非公開になっています',
+  101: '投稿者が YouTube 以外での再生を止めています',
+  150: '投稿者が YouTube 以外での再生を止めています',
+  153: 'YouTube がこのページからの再生を受け付けませんでした'
+};
+addEventListener('message', (e) => {
+  if (!ytFrame || e.source !== ytFrame.el.contentWindow) return;
+  let d;
+  try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (x) { return; }
+  if (!d || d.event !== 'onError') return;
+  const empty = $('empty');
+  const link = escapeHtml(ytFrame.url);
+  ytFrame.el.remove();
+  empty.style.display = '';
+  empty.innerHTML = '<b>「' + escapeHtml(ytFrame.name) + '」はここでは再生できません</b>' +
+    escapeHtml(YT_ERRORS[d.info] || 'YouTube がエラーを返しました') + '（エラー ' + escapeHtml(String(d.info)) + '）' +
+    '<a href="' + link + '" target="_blank" rel="noopener" style="margin-top:12px;color:var(--bg);background:var(--text);padding:16px 28px;border-radius:999px;text-decoration:none;font-size:18px">YouTube で開く</a>';
+  ytFrame = null;
+});
 
 function escapeHtml(s) { return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
