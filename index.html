@@ -38,6 +38,14 @@
   .empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
     justify-content: center; gap: 10px; color: var(--sub); font-size: 18px; text-align: center; padding: 24px; }
   .empty b { color: var(--text); font-size: 22px; }
+  .big { position: absolute; inset: 0; display: flex; align-items: center; gap: 32px; padding: 32px; background: #0b0b0a; }
+  .bigArt { height: 100%; max-height: 100%; aspect-ratio: 1 / 1; flex-shrink: 0; border-radius: 14px;
+    background: var(--panel-2) center / cover no-repeat; display: flex; align-items: center; justify-content: center; font-size: 72px; color: var(--sub); }
+  .bigMeta { flex: 1; min-width: 0; }
+  .bigTitle { font-size: 34px; font-weight: 700; margin: 0; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+  .bigArtist { font-size: 20px; color: var(--sub); margin: 10px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bigSrc { font-size: 15px; color: var(--muted); margin: 18px 0 0; display: flex; align-items: center; gap: 8px; }
+  .big .bar { height: 8px; margin-top: 18px; }
   .chips { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; }
   .chips::-webkit-scrollbar { display: none; }
   .chip { flex: 0 0 auto; padding: 0 22px; min-height: 56px; border-radius: 999px; font-size: 17px; background: var(--panel); }
@@ -118,6 +126,15 @@
   <section class="main">
     <div class="screen" id="screen">
       <div class="empty" id="empty"><b>見たいものを下から選ぶ</b>再生リストは右端の「編集」で入れ替えられます</div>
+      <div class="big hidden" id="big">
+        <div class="bigArt" id="bigArt"></div>
+        <div class="bigMeta">
+          <p class="bigTitle" id="bigTitle"></p>
+          <p class="bigArtist" id="bigArtist"></p>
+          <div class="bar"><div id="bigProg"></div></div>
+          <p class="bigSrc"><span class="dot" id="bigDot"></span><span id="bigSrc">Spotify</span></p>
+        </div>
+      </div>
     </div>
     <div class="chips" id="chips"></div>
   </section>
@@ -325,6 +342,8 @@ function renderChips() {
 }
 
 function show(i) {
+  mode = 'yt';
+  $('big').classList.add('hidden');
   current = i;
   renderChips();
   const scr = $('screen');
@@ -409,6 +428,7 @@ $('editOk').addEventListener('click', () => {
   tabs = next;
   store.set('tabs', tabs);
   current = -1;
+  mode = 'idle';
   $('screen').querySelectorAll('iframe').forEach((f) => f.remove());
   $('empty').style.display = '';
   $('empty').innerHTML = '<b>見たいものを下から選ぶ</b>再生リストは右端の「編集」で入れ替えられます';
@@ -533,7 +553,44 @@ function nowPos() {
   return Math.min(p, s.item.duration_ms || p);
 }
 
+let mode = 'idle';
+function setMode(m) {
+  mode = m;
+  if (m === 'spotify') {
+    current = -1;
+    renderChips();
+    $('screen').querySelectorAll('iframe').forEach((f) => f.remove());
+    ytFrame = null;
+  }
+  renderBig();
+}
+function renderBig() {
+  const s = sp.state;
+  const on = !!sp.tok && (mode === 'spotify' || (mode === 'idle' && !!(s && s.item)));
+  $('big').classList.toggle('hidden', !on);
+  if (!on) { if (mode === 'idle') $('empty').style.display = ''; return; }
+  $('empty').style.display = 'none';
+  const it = s && s.item;
+  if (!it) {
+    $('bigTitle').textContent = s ? '再生していません' : '再生中の機器がありません';
+    $('bigArtist').textContent = '右のプレイリストか ▶ で再生';
+    $('bigArt').style.backgroundImage = ''; $('bigArt').textContent = '♪';
+    $('bigProg').style.width = '0';
+    $('bigSrc').textContent = 'Spotify';
+    return;
+  }
+  const imgs = (it.album && it.album.images) || it.images || [];
+  $('bigTitle').textContent = it.name;
+  $('bigArtist').textContent = it.artists ? it.artists.map((a) => a.name).join(', ') : (it.show ? it.show.name : '');
+  if (imgs.length) { $('bigArt').style.backgroundImage = 'url("' + imgs[0].url + '")'; $('bigArt').textContent = ''; }
+  else { $('bigArt').style.backgroundImage = ''; $('bigArt').textContent = '♪'; }
+  $('bigProg').style.width = (it.duration_ms ? nowPos() / it.duration_ms * 100 : 0).toFixed(1) + '%';
+  $('bigDot').className = 'dot' + (s.is_playing ? '' : ' idle');
+  $('bigSrc').textContent = 'Spotify · ' + (s.device ? s.device.name : '') + (s.is_playing ? '' : '（一時停止中）');
+}
+
 function renderSp() {
+  renderBig();
   const on = !!sp.tok;
   $('spOff').classList.toggle('hidden', on);
   $('spOn').classList.toggle('hidden', !on);
@@ -591,7 +648,7 @@ $('play').addEventListener('click', () => {
   const s = sp.state;
   if (!s || !s.device) { openDevices(); return; }
   if (s.is_playing) { s.progress_ms = nowPos(); s.is_playing = false; sp.at = Date.now(); renderSp(); spAction('pause', 'PUT', '/me/player/pause'); }
-  else { s.is_playing = true; sp.at = Date.now(); renderSp(); spAction('play', 'PUT', '/me/player/play'); }
+  else { s.is_playing = true; sp.at = Date.now(); setMode('spotify'); renderSp(); spAction('play', 'PUT', '/me/player/play'); }
 });
 $('next').addEventListener('click', () => spAction('next', 'POST', '/me/player/next'));
 $('prev').addEventListener('click', () => spAction('prev', 'POST', '/me/player/previous'));
@@ -625,6 +682,7 @@ function renderLists() {
     b.textContent = p.name;
     if (p.uri === ctx) b.className = 'on';
     b.addEventListener('click', async () => {
+      setMode('spotify');
       sp.pendingUri = p.uri;
       const body = { context_uri: p.uri };
       const devId = sp.state && sp.state.device ? sp.state.device.id : null;
@@ -652,6 +710,7 @@ async function openDevices() {
     b.innerHTML = escapeHtml(d.name) + '<small>' + escapeHtml(d.type) + (d.is_active ? ' · 再生中' : '') + '</small>';
     b.addEventListener('click', async () => {
       closeSheet('devSheet');
+      setMode('spotify');
       if (sp.pendingUri) {
         if (await spAction('play list', 'PUT', '/me/player/play?device_id=' + encodeURIComponent(d.id), { context_uri: sp.pendingUri })) sp.pendingUri = null;
       } else {
