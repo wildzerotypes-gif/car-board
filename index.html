@@ -307,7 +307,8 @@ $('etaOk').addEventListener('click', () => {
 function saveEta() { eta = etaPick; store.set('eta', eta); tick(); closeSheet('etaSheet'); }
 
 const DEFAULT_TABS = [
-  { name: '梅田サイファー MV', url: 'https://www.youtube.com/playlist?list=PLzPnarQ3gFjfKUBeI8nZEZ2geaMluC1o8' }
+  { name: '梅田サイファー MV', url: 'https://www.youtube.com/playlist?list=PLzPnarQ3gFjfKUBeI8nZEZ2geaMluC1o8' },
+  { name: 'ジェラードン', url: 'https://www.youtube.com/playlist?list=UULFRaaCxSF8nEpfG3ZHesXKxw' }
 ];
 let tabs = store.get('tabs', DEFAULT_TABS);
 let current = -1;
