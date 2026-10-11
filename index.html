@@ -99,6 +99,10 @@
   .row .ok { background: var(--green); color: var(--green-ink); font-weight: 600; }
   .quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
   .quick button { font-size: 18px; }
+  .box.wide { width: min(900px, 94vw); }
+  .grp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .grp button { min-height: 76px; font-size: 18px; padding: 8px 12px; line-height: 1.3; }
+  .grp button.on { background: var(--text); color: var(--bg); }
   .devs { display: flex; flex-direction: column; gap: 10px; }
   .devs button { text-align: left; padding: 0 16px; font-size: 17px; }
   .devs button small { color: var(--sub); margin-left: 8px; font-size: 14px; }
@@ -228,6 +232,16 @@
   </div>
 </div>
 
+<div class="sheet" id="grpSheet" role="dialog" aria-modal="true" aria-labelledby="grpH">
+  <div class="box wide">
+    <h2 id="grpH"></h2>
+    <div class="grp" id="grpList"></div>
+    <div class="row">
+      <button id="grpCancel">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <div class="sheet" id="devSheet" role="dialog" aria-modal="true" aria-labelledby="devH">
   <div class="box">
     <h2 id="devH">再生する機器を選ぶ</h2>
@@ -308,7 +322,24 @@ function saveEta() { eta = etaPick; store.set('eta', eta); tick(); closeSheet('e
 
 const DEFAULT_TABS = [
   { name: '梅田サイファー MV', url: 'https://www.youtube.com/playlist?list=PLzPnarQ3gFjfKUBeI8nZEZ2geaMluC1o8' },
-  { name: 'ジェラードン', url: 'https://www.youtube.com/playlist?list=UULFRaaCxSF8nEpfG3ZHesXKxw' }
+  { name: 'ジェラードン / 全部（新しい順）', url: 'https://www.youtube.com/playlist?list=UULFRaaCxSF8nEpfG3ZHesXKxw' },
+  { name: 'ジェラードン / ネタ【公式】', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDXtN9zVUxRMUtYDiQrbUHp4' },
+  { name: 'ジェラードン / 海野くんとおともだち', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDWKSObMmDJ1qTuTiUMnUgU4' },
+  { name: 'ジェラードン / OLたかこ', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDV7kHHlmFwK8_uXXpNhICWf' },
+  { name: 'ジェラードン / 陰キャ', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDXQTGakS0qCMKnqsUwHP6S_' },
+  { name: 'ジェラードン / 貫禄', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDX0uHwvJStik_eAPKpb3THx' },
+  { name: 'ジェラードン / 如月マロン', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDXWZ9jmm9xoKiFolEOpWG3z' },
+  { name: 'ジェラードン / 架空芸人', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDXvAK7qvEOtHq05TDGY3wUP' },
+  { name: 'ジェラードン / タケの絶望', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDVum84cUn7hAvgc8MUfqJYA' },
+  { name: 'ジェラードン / バカ', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDXN81gS_0ES3GPe14mFtZKz' },
+  { name: 'ジェラードン / レンタル彼氏', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDXew-mF9WvfUKrF2jIhotUG' },
+  { name: 'ジェラードン / ボスママ', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDUGAOxZC0WYn1ROR2-pA_NJ' },
+  { name: 'ジェラードン / オーディション', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDXF1068w12mE38RIVWpSDfq' },
+  { name: 'ジェラードン / ゲームのコント', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDUL7cqm6o1GOZFNDz90qHWB' },
+  { name: 'ジェラードン / 映像コント', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDVj1gV9B_7DNccZ5HtsNrlM' },
+  { name: 'ジェラードン / 瞬間おもろ選手権', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDV4tv6DoTcipKTYTNwscnsq' },
+  { name: 'ジェラードン / アニメ', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDVYIE4YO_hc7tk4faGoVTWj' },
+  { name: 'ジェラードン / さくっとコント', url: 'https://www.youtube.com/playlist?list=PLHiaq_upLIDXxpOT3qwr92r42CG02Kjb2' }
 ];
 let tabs = store.get('tabs', DEFAULT_TABS);
 let current = -1;
@@ -336,10 +367,29 @@ function toEmbed(url) {
   return null;
 }
 
+function splitName(name) {
+  const k = name.indexOf(' / ');
+  return k < 0 ? { group: null, label: name } : { group: name.slice(0, k).trim(), label: name.slice(k + 3).trim() };
+}
+
 function renderChips() {
   const box = $('chips');
   box.innerHTML = '';
+  const cur = current >= 0 && tabs[current] ? splitName(tabs[current].name) : null;
+  const seen = new Set();
   tabs.forEach((t, i) => {
+    const sn = splitName(t.name);
+    if (sn.group) {
+      if (seen.has(sn.group)) return;
+      seen.add(sn.group);
+      const on = !!(cur && cur.group === sn.group);
+      const b = document.createElement('button');
+      b.className = 'chip' + (on ? ' on' : '');
+      b.textContent = sn.group + (on ? ' · ' + cur.label : ' ▾');
+      b.addEventListener('click', () => openGroup(sn.group));
+      box.appendChild(b);
+      return;
+    }
     const b = document.createElement('button');
     b.className = 'chip' + (i === current ? ' on' : '');
     b.textContent = t.name;
@@ -455,6 +505,22 @@ addEventListener('message', (e) => {
     '<a href="' + link + '" target="_blank" rel="noopener" style="margin-top:12px;color:var(--bg);background:var(--text);padding:16px 28px;border-radius:999px;text-decoration:none;font-size:18px">YouTube で開く</a>';
   ytFrame = null;
 });
+
+function openGroup(group) {
+  $('grpH').textContent = group;
+  const box = $('grpList');
+  box.innerHTML = '';
+  tabs.forEach((t, i) => {
+    const sn = splitName(t.name);
+    if (sn.group !== group) return;
+    const b = document.createElement('button');
+    b.textContent = sn.label;
+    if (i === current) b.className = 'on';
+    b.addEventListener('click', () => { closeSheet('grpSheet'); show(i); });
+    box.appendChild(b);
+  });
+  openSheet('grpSheet');
+}
 
 function escapeHtml(s) { return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
@@ -784,6 +850,7 @@ async function openDevices() {
   });
 }
 $('devReload').addEventListener('click', openDevices);
+$('grpCancel').addEventListener('click', () => closeSheet('grpSheet'));
 $('devCancel').addEventListener('click', () => { sp.pendingUri = null; closeSheet('devSheet'); });
 
 function openSpSettings() {
