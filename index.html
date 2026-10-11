@@ -284,8 +284,7 @@ $('etaOk').addEventListener('click', () => {
 function saveEta() { eta = etaPick; store.set('eta', eta); tick(); closeSheet('etaSheet'); }
 
 const DEFAULT_TABS = [
-  { name: 'TOYOTOMI', url: 'https://youtu.be/xOfAlIF5Q84' },
-  { name: '髭男 BANGKOK', url: 'https://youtu.be/105tIfw5AjU' }
+  { name: 'TOYOTOMI', url: 'https://youtu.be/xOfAlIF5Q84' }
 ];
 let tabs = store.get('tabs', DEFAULT_TABS);
 let current = -1;
