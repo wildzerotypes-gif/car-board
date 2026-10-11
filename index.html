@@ -385,7 +385,8 @@ renderChips();
 const AUTH = 'https://accounts.spotify.com';
 const API = 'https://api.spotify.com/v1';
 const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private playlist-read-collaborative';
-const sp = { cid: store.get('sp.cid', ''), tok: store.get('sp.tok', null), state: null, at: 0, lists: [], pendingUri: null, backoff: 0 };
+const DEFAULT_CID = 'e3e9f2cf4a2e40e7ae086b835820d53a';
+const sp = { cid: store.get('sp.cid', '') || DEFAULT_CID,tok: store.get('sp.tok', null), state: null, at: 0, lists: [], pendingUri: null, backoff: 0 };
 const redirectUri = () => location.origin + location.pathname;
 const fmt = (ms) => { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + pad(s % 60); };
 
