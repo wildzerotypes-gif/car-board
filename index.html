@@ -284,7 +284,8 @@ $('etaOk').addEventListener('click', () => {
 function saveEta() { eta = etaPick; store.set('eta', eta); tick(); closeSheet('etaSheet'); }
 
 const DEFAULT_TABS = [
-  { name: 'TOYOTOMI', url: 'https://youtu.be/xOfAlIF5Q84' }
+  { name: '梅田サイファー', url: 'https://www.youtube.com/playlist?list=UURJL3BrWVc-ypwXSBprk-1g' },
+  { name: 'Official髭男dism', url: 'https://www.youtube.com/playlist?list=UU9M4B-fqveLyWPGNdSkam7g' }
 ];
 let tabs = store.get('tabs', DEFAULT_TABS);
 let current = -1;
@@ -342,7 +343,7 @@ function show(i) {
   f.addEventListener('load', () => {
     for (let k = 0; k < 6; k++) setTimeout(() => { if (f.contentWindow) f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'board' }), '*'); }, k * 500);
   });
-  ytFrame = { el: f, name: tabs[i].name, url: tabs[i].url };
+  ytFrame = { el: f, name: tabs[i].name, url: tabs[i].url, isList: src.includes('list='), skips: 0 };
   f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
   f.allowFullscreen = true;
   f.referrerPolicy = 'strict-origin-when-cross-origin';
@@ -364,7 +365,17 @@ addEventListener('message', (e) => {
   if (!ytFrame || e.source !== ytFrame.el.contentWindow) return;
   let d;
   try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (x) { return; }
-  if (!d || d.event !== 'onError') return;
+  if (!d) return;
+  const st = d.event === 'onStateChange' ? d.info : (d.event === 'infoDelivery' && d.info ? d.info.playerState : null);
+  if (d.event === 'infoDelivery' && d.info && Array.isArray(d.info.playlist) && d.info.playlist.length) ytFrame.listReady = true;
+  if (st === 1) { ytFrame.skips = 0; return; }
+  if (d.event !== 'onError') return;
+  if (ytFrame.isList && ytFrame.listReady && ytFrame.skips < 10 && d.info !== 153) {
+    ytFrame.skips += 1;
+    ytFrame.el.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'nextVideo', args: [] }), '*');
+    toast('再生できない動画を飛ばしました');
+    return;
+  }
   const empty = $('empty');
   const link = escapeHtml(ytFrame.url);
   ytFrame.el.remove();
