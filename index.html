@@ -21,7 +21,7 @@
   button:active { transform: scale(0.97); background: var(--line); }
   .wall { position: fixed; inset: -60px; z-index: 0; background: var(--bg) center / cover no-repeat;
     filter: blur(26px) brightness(0.38) saturate(1.15); transition: opacity 0.6s; pointer-events: none; }
-  .app { position: relative; z-index: 1; height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) 340px;
+  .app { position: relative; z-index: 1; height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 31vw, 420px);
     grid-template-rows: auto minmax(0, 1fr); gap: 12px; padding: 12px; }
   header { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; }
   .clock { font-size: 40px; font-weight: 600; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
@@ -84,11 +84,19 @@
   .vol .meter { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
   .vol .meter > div { height: 100%; background: var(--sub); }
   .connect { width: 100%; background: var(--green); color: var(--green-ink); font-weight: 600; font-size: 18px; margin-top: 4px; }
-  .lists { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .lists button { font-size: 15px; padding: 6px 10px; text-align: left; overflow: hidden; text-overflow: ellipsis;
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.35; }
-  .lists button.on { outline: 2px solid var(--green); }
-  .lists .note { grid-column: 1 / -1; color: var(--muted); font-size: 14px; margin: 0; }
+  .lists { display: flex; flex-direction: column; gap: 8px; }
+  .lists button { display: flex; align-items: center; gap: 12px; padding: 6px 12px 6px 6px; text-align: left; min-height: 64px; }
+  .lists button.on, .plGrid button.on { outline: 2px solid var(--green); }
+  .lists .note { color: var(--muted); font-size: 14px; margin: 0; }
+  .pl-cover { width: 52px; height: 52px; border-radius: 8px; flex-shrink: 0; background: var(--line) center / cover no-repeat;
+    display: flex; align-items: center; justify-content: center; color: var(--sub); font-size: 20px; }
+  .pl-name { flex: 1; min-width: 0; font-size: 16px; line-height: 1.35; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .plGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  .plGrid button { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 8px; text-align: left; }
+  .plGrid .pl-cover { width: 100%; height: auto; aspect-ratio: 1 / 1; font-size: 40px; }
+  .plGrid .pl-name { font-size: 15px; }
+  .label .more { margin-left: auto; min-height: 40px; padding: 0 14px; font-size: 14px; color: var(--sub); }
   .grow { flex: 1; min-height: 0; overflow: auto; }
   .hidden { display: none !important; }
 
@@ -189,7 +197,7 @@
       </div>
     </div>
     <div class="card grow">
-      <p class="label">プレイリスト</p>
+      <p class="label">プレイリスト<button class="more hidden" id="plMore">大きく表示</button></p>
       <div class="lists" id="lists"><p class="note">Spotify につなぐと、自分のプレイリストが並びます</p></div>
     </div>
   </aside>
@@ -245,6 +253,16 @@
     <div class="grp" id="grpList"></div>
     <div class="row">
       <button id="grpCancel">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="plSheet" role="dialog" aria-modal="true" aria-labelledby="plH">
+  <div class="box wide">
+    <h2 id="plH">Spotify のプレイリスト</h2>
+    <div class="plGrid" id="plGrid"></div>
+    <div class="row">
+      <button id="plCancel">閉じる</button>
     </div>
   </div>
 </div>
@@ -830,31 +848,49 @@ $('vUp').addEventListener('click', () => changeVol(10));
 async function loadLists() {
   if (!sp.tok) return;
   try {
-    const j = await api('GET', '/me/playlists?limit=20');
+    const j = await api('GET', '/me/playlists?limit=50');
     sp.lists = (j && j.items ? j.items : []).filter(Boolean);
   } catch (e) { sp.lists = []; }
   renderLists();
 }
+async function playList(p) {
+  closeSheet('plSheet');
+  setMode('spotify');
+  sp.pendingUri = p.uri;
+  const body = { context_uri: p.uri };
+  const devId = sp.state && sp.state.device ? sp.state.device.id : null;
+  if (await spAction('play list', 'PUT', '/me/player/play' + (devId ? '?device_id=' + encodeURIComponent(devId) : ''), body)) sp.pendingUri = null;
+}
+function listButton(p, ctx) {
+  const b = document.createElement('button');
+  if (p.uri === ctx) b.className = 'on';
+  const c = document.createElement('span');
+  c.className = 'pl-cover';
+  const img = (p.images && (p.images[1] || p.images[0])) || null;
+  if (img && img.url) c.style.backgroundImage = 'url("' + img.url + '")'; else c.textContent = '♪';
+  const n = document.createElement('span');
+  n.className = 'pl-name';
+  n.textContent = p.name;
+  b.append(c, n);
+  b.addEventListener('click', () => playList(p));
+  return b;
+}
 function renderLists() {
   const box = $('lists');
+  const grid = $('plGrid');
   box.innerHTML = '';
+  grid.innerHTML = '';
+  $('plMore').classList.toggle('hidden', !(sp.tok && sp.lists.length));
   if (!sp.tok) { box.innerHTML = '<p class="note">Spotify につなぐと、自分のプレイリストが並びます</p>'; return; }
   if (!sp.lists.length) { box.innerHTML = '<p class="note">プレイリストが見つかりません</p>'; return; }
   const ctx = sp.state && sp.state.context ? sp.state.context.uri : '';
   sp.lists.forEach((p) => {
-    const b = document.createElement('button');
-    b.textContent = p.name;
-    if (p.uri === ctx) b.className = 'on';
-    b.addEventListener('click', async () => {
-      setMode('spotify');
-      sp.pendingUri = p.uri;
-      const body = { context_uri: p.uri };
-      const devId = sp.state && sp.state.device ? sp.state.device.id : null;
-      if (await spAction('play list', 'PUT', '/me/player/play' + (devId ? '?device_id=' + encodeURIComponent(devId) : ''), body)) sp.pendingUri = null;
-    });
-    box.appendChild(b);
+    box.appendChild(listButton(p, ctx));
+    grid.appendChild(listButton(p, ctx));
   });
 }
+$('plMore').addEventListener('click', () => openSheet('plSheet'));
+$('plCancel').addEventListener('click', () => closeSheet('plSheet'));
 
 async function openDevices() {
   if (!sp.tok) { login(); return; }
